@@ -2,7 +2,7 @@
 
 **An interactive learning platform powered by solved game theory**
 
-Master the perfect game of Tic-Tac-Toe through AI-powered learning modes. This application uses a complete solution of the 3×3 Tic-Tac-Toe game generated via the Minimax algorithm with symmetry reduction.
+Master the perfect game of Tic-Tac-Toe through AI-powered learning modes. This application uses a complete solution of the 3×3 Tic-Tac-Toe game generated via the Minimax algorithm with symmetry reduction!
 
 [![Live Demo](https://img.shields.io/badge/Demo-Live-brightgreen)](https://egil10.github.io/tictactoe/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
