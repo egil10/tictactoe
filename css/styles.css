@@ -314,6 +314,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    max-height: 400px;
+    overflow-y: auto;
 }
 
 .outcome-move {
@@ -408,6 +410,55 @@ body {
     color: var(--text-muted);
     padding: 2rem;
     font-style: italic;
+}
+
+.tree-level {
+    margin-bottom: 1rem;
+}
+
+.tree-level-title {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+.tree-moves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.outcome-move-compact {
+    background: rgba(10, 14, 39, 0.6);
+    border: 1px solid rgba(124, 58, 237, 0.2);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all var(--transition);
+}
+
+.outcome-move-compact:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+
+.outcome-move-compact .outcome-move-pos {
+    font-weight: 800;
+    font-size: 1.25rem;
+    min-width: auto;
+}
+
+.outcome-move-compact .outcome-badge {
+    font-size: 0.65rem;
+}
+
+.outcome-move-compact .outcome-star {
+    font-size: 1rem;
 }
 
 /* =============== Loading =============== */

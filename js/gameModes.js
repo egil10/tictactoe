@@ -1,6 +1,6 @@
 /**
- * Game Modes Module - Final Version
- * Split panels for X/O moves, toggle hints, clean feedback
+ * Game Modes Module - With Depth-Based Outcome Tree
+ * Shows 1-8 steps ahead for both X and O
  */
 
 import { EMPTY, X_PLAYER, O_PLAYER, BoardState } from './boardState.js';
@@ -55,7 +55,7 @@ class GameModes {
     }
 
     /**
-     * Build split outcome panels: current player's moves in their panel
+     * Build outcome panels showing 1-8 steps ahead for both X and O
      */
     buildOutcomePanels(board) {
         if (BoardState.isTerminal(board)) {
@@ -73,44 +73,120 @@ class GameModes {
             return;
         }
 
+        // Explore moves for both players at different depths
+        const xMoves = this.exploreMovesByPlayer(board, X_PLAYER, 8);
+        const oMoves = this.exploreMovesByPlayer(board, O_PLAYER, 8);
+
+        // Render panels
+        this.renderPlayerPanel('outcomeXContent', xMoves, X_PLAYER);
+        this.renderPlayerPanel('outcomeOContent', oMoves, O_PLAYER);
+    }
+
+    /**
+     * Explore moves for a specific player at different depths
+     */
+    exploreMovesByPlayer(board, targetPlayer, maxDepth) {
+        const movesByDepth = [];
+        for (let i = 0; i <= maxDepth; i++) {
+            movesByDepth[i] = [];
+        }
+
+        const currentPlayer = BoardState.getCurrentPlayer(board);
+        const startDepth = (currentPlayer === targetPlayer) ? 0 : 1;
+
+        this.exploreDepth(board, targetPlayer, startDepth, maxDepth, movesByDepth, new Set());
+
+        return movesByDepth;
+    }
+
+    /**
+     * Recursively explore tree for target player's moves
+     */
+    exploreDepth(board, targetPlayer, currentDepth, maxDepth, movesByDepth, visited) {
+        if (currentDepth > maxDepth || BoardState.isTerminal(board)) {
+            return;
+        }
+
+        const canonicalKey = BoardState.getCanonicalKey(board);
+        const stateData = gameTreeLoader.getState(canonicalKey);
+
+        if (!stateData || !stateData.next_moves) {
+            return;
+        }
+
         const currentPlayer = BoardState.getCurrentPlayer(board);
 
-        // Sort moves by position
-        const sortedMoves = [...stateData.next_moves].sort((a, b) => a.pos - b.pos);
+        if (currentPlayer === targetPlayer) {
+            // It's target player's turn - record moves
+            stateData.next_moves.forEach(move => {
+                const moveKey = `${currentDepth}-${move.pos}`;
+                if (!visited.has(moveKey)) {
+                    visited.add(moveKey);
+                    movesByDepth[currentDepth].push({
+                        pos: move.pos,
+                        score: move.minimax_score,
+                        optimal: move.is_optimal
+                    });
+                }
 
-        // Show moves in the current player's panel
-        if (currentPlayer === X_PLAYER) {
-            this.renderMovePanel('outcomeXContent', sortedMoves, X_PLAYER);
-            document.getElementById('outcomeOContent').innerHTML = '<div class="outcome-empty">Not O\'s turn</div>';
+                // Explore further (next occurrence is 2 steps ahead)
+                const newBoard = BoardState.stringToBoard(move.to_board);
+                if (!BoardState.isTerminal(newBoard)) {
+                    this.exploreDepth(newBoard, targetPlayer, currentDepth + 2, maxDepth, movesByDepth, visited);
+                }
+            });
         } else {
-            this.renderMovePanel('outcomeOContent', sortedMoves, O_PLAYER);
-            document.getElementById('outcomeXContent').innerHTML = '<div class="outcome-empty">Not X\'s turn</div>';
+            // Not target player's turn - explore all opponent moves
+            stateData.next_moves.forEach(move => {
+                const newBoard = BoardState.stringToBoard(move.to_board);
+                if (!BoardState.isTerminal(newBoard)) {
+                    this.exploreDepth(newBoard, targetPlayer, currentDepth + 1, maxDepth, movesByDepth, visited);
+                }
+            });
         }
     }
 
-    renderMovePanel(elementId, moves, player) {
+    /**
+     * Render player panel with depth-organized moves
+     */
+    renderPlayerPanel(elementId, movesByDepth, player) {
         const container = document.getElementById(elementId);
+        let html = '';
 
-        if (moves.length === 0) {
+        // Check if player has any moves
+        const hasAnyMoves = movesByDepth.some(moves => moves.length > 0);
+
+        if (!hasAnyMoves) {
             container.innerHTML = `<div class="outcome-empty">No moves for ${BoardState.getPlayerSymbol(player)}</div>`;
             return;
         }
 
-        let html = '';
-        moves.forEach(move => {
-            const outcomeClass = move.minimax_score === 1 ? 'win' : move.minimax_score === -1 ? 'loss' : 'draw';
-            const outcomeLabel = move.minimax_score === 1 ? 'Win' : move.minimax_score === -1 ? 'Loss' : 'Draw';
+        // Render each depth level
+        movesByDepth.forEach((moves, depth) => {
+            if (moves.length === 0) return;
 
-            html += `<div class="outcome-move">`;
-            html += `  <div class="outcome-move-left">`;
-            html += `    <span class="outcome-move-pos">${move.pos + 1}</span>`;
-            html += `    <span class="outcome-move-label">Position</span>`;
-            html += `  </div>`;
-            html += `  <div class="outcome-move-right">`;
-            html += `    <span class="outcome-badge ${outcomeClass}">${outcomeLabel}</span>`;
-            if (move.is_optimal && this.hintsVisible) {
-                html += `    <span class="outcome-star">★</span>`;
-            }
+            const depthLabel = depth === 0 ? 'Now' : `${depth} step${depth > 1 ? 's' : ''} ahead`;
+
+            html += `<div class="tree-level">`;
+            html += `  <div class="tree-level-title">${depthLabel}</div>`;
+            html += `  <div class="tree-moves">`;
+
+            // Sort moves by position
+            const sortedMoves = [...moves].sort((a, b) => a.pos - b.pos);
+
+            sortedMoves.forEach(move => {
+                const outcomeClass = move.score === 1 ? 'win' : move.score === -1 ? 'loss' : 'draw';
+                const outcomeLabel = move.score === 1 ? 'Win' : move.score === -1 ? 'Loss' : 'Draw';
+
+                html += `<div class="outcome-move-compact">`;
+                html += `  <span class="outcome-move-pos">${move.pos + 1}</span>`;
+                html += `  <span class="outcome-badge ${outcomeClass}">${outcomeLabel}</span>`;
+                if (move.optimal && this.hintsVisible && depth === 0) {
+                    html += `  <span class="outcome-star">★</span>`;
+                }
+                html += `</div>`;
+            });
+
             html += `  </div>`;
             html += `</div>`;
         });
@@ -122,18 +198,16 @@ class GameModes {
         this.hintsVisible = !this.hintsVisible;
         const btn = document.getElementById('btnToggleHints');
         const text = btn.querySelector('.toggle-text');
+        const container = document.getElementById('outcomeContainer');
 
         if (this.hintsVisible) {
             btn.classList.remove('active');
             text.textContent = 'Hide Hints';
+            container.classList.remove('hidden');
         } else {
             btn.classList.add('active');
             text.textContent = 'Show Hints';
-        }
-
-        // Rebuild the current view
-        if (this.currentBoard) {
-            this.buildOutcomePanels(this.currentBoard);
+            container.classList.add('hidden');
         }
     }
 
@@ -240,7 +314,7 @@ class GameModes {
             this.renderer.highlightCell(position, 'optimal');
         } else {
             const optimalPos = stateData.winning_move_pos;
-            this.showFeedback(`⚠️ Suboptimal. The optimal move was position ${optimalPos + 1}`, 'suboptimal');
+            this.showFeedback(`⚠️ Suboptimal.The optimal move was position ${optimalPos + 1} `, 'suboptimal');
             this.renderer.highlightCell(position, 'suboptimal');
         }
 
@@ -270,7 +344,7 @@ class GameModes {
         const playerSymbol = BoardState.getPlayerSymbol(currentPlayer);
 
         this.showFeedback(
-            `What is the outcome for ${playerSymbol} with optimal play?<br><br>` +
+            `What is the outcome for ${playerSymbol} with optimal play ? <br><br>` +
             `<button class="mode-btn" id="quizWin" style="display:inline-block; margin:0.25rem; padding:0.75rem 1.5rem;">Win</button> ` +
             `<button class="mode-btn" id="quizDraw" style="display:inline-block; margin:0.25rem; padding:0.75rem 1.5rem;">Draw</button> ` +
             `<button class="mode-btn" id="quizLoss" style="display:inline-block; margin:0.25rem; padding:0.75rem 1.5rem;">Loss</button>`
