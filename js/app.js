@@ -56,6 +56,11 @@ class App {
         document.getElementById('btnNewRound').addEventListener('click', () => {
             this.gameModes.resetBoard();
         });
+
+        // Toggle hints button
+        document.getElementById('btnToggleHints').addEventListener('click', () => {
+            this.gameModes.toggleHints();
+        });
     }
 
     startMode(mode) {

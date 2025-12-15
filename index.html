@@ -31,9 +31,19 @@
                 <button id="btnNewRound" class="btn-action">New</button>
             </div>
 
-            <div class="info-bar">
-                <span>Turn: <strong id="currentTurn">X</strong></span>
-                <span>Outcome: <strong id="bestOutcome">Draw</strong></span>
+            <div class="controls-row">
+                <div class="info-pill">
+                    <span class="info-label">Turn:</span>
+                    <span class="info-value" id="currentTurn">X</span>
+                </div>
+                <div class="info-pill">
+                    <span class="info-label">Outcome:</span>
+                    <span class="info-value" id="bestOutcome">Draw</span>
+                </div>
+                <button id="btnToggleHints" class="btn-toggle">
+                    <span class="toggle-icon">👁️</span>
+                    <span class="toggle-text">Hide Hints</span>
+                </button>
             </div>
 
             <div class="board-wrapper">
@@ -52,8 +62,17 @@
 
             <div id="feedbackPanel" class="feedback-panel"></div>
 
-            <!-- Outcome Tree -->
-            <div id="outcomeTree" class="outcome-tree"></div>
+            <!-- Split Outcome Panels -->
+            <div id="outcomeContainer" class="outcome-container">
+                <div id="outcomeX" class="outcome-panel">
+                    <h3 class="outcome-title">X's Optimal Moves</h3>
+                    <div id="outcomeXContent" class="outcome-content"></div>
+                </div>
+                <div id="outcomeO" class="outcome-panel">
+                    <h3 class="outcome-title">O's Optimal Moves</h3>
+                    <div id="outcomeOContent" class="outcome-content"></div>
+                </div>
+            </div>
         </div>
     </div>
 

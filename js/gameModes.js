@@ -1,6 +1,6 @@
 /**
- * Game Modes Module - Simplified
- * 3 Modes: Play Game, Find Optimal Move, Identify Outcome
+ * Game Modes Module - Final Version
+ * Split panels for X/O moves, toggle hints, clean feedback
  */
 
 import { EMPTY, X_PLAYER, O_PLAYER, BoardState } from './boardState.js';
@@ -12,6 +12,7 @@ class GameModes {
         this.currentMode = null;
         this.currentBoard = null;
         this.renderer = null;
+        this.hintsVisible = true;
     }
 
     init(renderer) {
@@ -46,21 +47,20 @@ class GameModes {
 
     getOutcomeText(score, currentPlayer) {
         if (score === 1) {
-            return currentPlayer === X_PLAYER ? 'X Wins' : 'X Wins';
+            return 'X Wins';
         } else if (score === -1) {
-            return currentPlayer === O_PLAYER ? 'O Wins' : 'O Wins';
+            return 'O Wins';
         }
         return 'Draw';
     }
 
     /**
-     * Build and display outcome tree showing all possible moves sorted by depth
+     * Build split outcome panels: current player's moves in their panel
      */
-    buildOutcomeTree(board) {
-        const treeContainer = document.getElementById('outcomeTree');
-
+    buildOutcomePanels(board) {
         if (BoardState.isTerminal(board)) {
-            treeContainer.innerHTML = '';
+            document.getElementById('outcomeXContent').innerHTML = '<div class="outcome-empty">Game Over</div>';
+            document.getElementById('outcomeOContent').innerHTML = '<div class="outcome-empty">Game Over</div>';
             return;
         }
 
@@ -68,104 +68,72 @@ class GameModes {
         const stateData = gameTreeLoader.getState(canonicalKey);
 
         if (!stateData || !stateData.next_moves || stateData.next_moves.length === 0) {
-            treeContainer.innerHTML = '';
+            document.getElementById('outcomeXContent').innerHTML = '<div class="outcome-empty">No moves available</div>';
+            document.getElementById('outcomeOContent').innerHTML = '<div class="outcome-empty">No moves available</div>';
             return;
         }
 
-        // Group moves by depth (we'll simulate depth by exploring further)
-        const movesByDepth = this.exploreMoveTree(board, 3); // Explore up to 3 levels
+        const currentPlayer = BoardState.getCurrentPlayer(board);
 
-        let html = '<h3>Possible Outcomes</h3>';
+        // Sort moves by position
+        const sortedMoves = [...stateData.next_moves].sort((a, b) => a.pos - b.pos);
 
-        movesByDepth.forEach((moves, depth) => {
-            if (moves.length === 0) return;
-
-            html += `<div class="tree-level">`;
-            html += `<div class="tree-level-title">${depth === 0 ? 'Immediate Moves' : `${depth + 1} Move${depth > 0 ? 's' : ''} Ahead`}</div>`;
-            html += `<div class="tree-outcomes">`;
-
-            moves.forEach(move => {
-                const outcomeClass = move.score === 1 ? 'win' : move.score === -1 ? 'loss' : 'draw';
-                const outcomeSymbol = move.score === 1 ? '✓' : move.score === -1 ? '✗' : '=';
-                html += `<div class="tree-outcome ${outcomeClass}">`;
-                html += `<span class="tree-outcome-pos">${move.pos + 1}</span>`;
-                html += `<span>${outcomeSymbol}</span>`;
-                if (move.optimal) {
-                    html += `<span>★</span>`;
-                }
-                html += `</div>`;
-            });
-
-            html += `</div></div>`;
-        });
-
-        treeContainer.innerHTML = html;
-    }
-
-    /**
-     * Explore move tree to organize by depth
-     */
-    exploreMoveTree(board, maxDepth) {
-        const movesByDepth = [];
-
-        for (let depth = 0; depth <= maxDepth; depth++) {
-            movesByDepth[depth] = [];
-        }
-
-        // First level - immediate moves
-        const canonicalKey = BoardState.getCanonicalKey(board);
-        const stateData = gameTreeLoader.getState(canonicalKey);
-
-        if (!stateData) return movesByDepth;
-
-        stateData.next_moves.forEach(move => {
-            movesByDepth[0].push({
-                pos: move.pos,
-                score: move.minimax_score,
-                optimal: move.is_optimal
-            });
-        });
-
-        // Subsequent levels
-        for (let depth = 1; depth <= maxDepth; depth++) {
-            const seenPositions = new Set();
-
-            stateData.next_moves.forEach(firstMove => {
-                const newBoard = BoardState.stringToBoard(firstMove.to_board);
-                this.exploreDepth(newBoard, depth, depth, movesByDepth, seenPositions);
-            });
-        }
-
-        return movesByDepth;
-    }
-
-    exploreDepth(board, currentDepth, targetDepth, movesByDepth, seenPositions) {
-        if (currentDepth === 0 || BoardState.isTerminal(board)) return;
-
-        const canonicalKey = BoardState.getCanonicalKey(board);
-        const stateData = gameTreeLoader.getState(canonicalKey);
-
-        if (!stateData) return;
-
-        if (currentDepth === 1) {
-            // We're at the target depth, record the moves
-            stateData.next_moves.forEach(move => {
-                const posKey = `${targetDepth}-${move.pos}`;
-                if (!seenPositions.has(posKey)) {
-                    seenPositions.add(posKey);
-                    movesByDepth[targetDepth].push({
-                        pos: move.pos,
-                        score: move.minimax_score,
-                        optimal: move.is_optimal
-                    });
-                }
-            });
+        // Show moves in the current player's panel
+        if (currentPlayer === X_PLAYER) {
+            this.renderMovePanel('outcomeXContent', sortedMoves, X_PLAYER);
+            document.getElementById('outcomeOContent').innerHTML = '<div class="outcome-empty">Not O\'s turn</div>';
         } else {
-            // Keep exploring
-            stateData.next_moves.forEach(move => {
-                const newBoard = BoardState.stringToBoard(move.to_board);
-                this.exploreDepth(newBoard, currentDepth - 1, targetDepth, movesByDepth, seenPositions);
-            });
+            this.renderMovePanel('outcomeOContent', sortedMoves, O_PLAYER);
+            document.getElementById('outcomeXContent').innerHTML = '<div class="outcome-empty">Not X\'s turn</div>';
+        }
+    }
+
+    renderMovePanel(elementId, moves, player) {
+        const container = document.getElementById(elementId);
+
+        if (moves.length === 0) {
+            container.innerHTML = `<div class="outcome-empty">No moves for ${BoardState.getPlayerSymbol(player)}</div>`;
+            return;
+        }
+
+        let html = '';
+        moves.forEach(move => {
+            const outcomeClass = move.minimax_score === 1 ? 'win' : move.minimax_score === -1 ? 'loss' : 'draw';
+            const outcomeLabel = move.minimax_score === 1 ? 'Win' : move.minimax_score === -1 ? 'Loss' : 'Draw';
+
+            html += `<div class="outcome-move">`;
+            html += `  <div class="outcome-move-left">`;
+            html += `    <span class="outcome-move-pos">${move.pos + 1}</span>`;
+            html += `    <span class="outcome-move-label">Position</span>`;
+            html += `  </div>`;
+            html += `  <div class="outcome-move-right">`;
+            html += `    <span class="outcome-badge ${outcomeClass}">${outcomeLabel}</span>`;
+            if (move.is_optimal && this.hintsVisible) {
+                html += `    <span class="outcome-star">★</span>`;
+            }
+            html += `  </div>`;
+            html += `</div>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    toggleHints() {
+        this.hintsVisible = !this.hintsVisible;
+        const btn = document.getElementById('btnToggleHints');
+        const text = btn.querySelector('.toggle-text');
+
+        if (this.hintsVisible) {
+            btn.classList.remove('active');
+            text.textContent = 'Hide Hints';
+        } else {
+            btn.classList.add('active');
+            text.textContent = 'Show Hints';
+        }
+
+        // Rebuild the current view
+        if (this.currentBoard) {
+            this.buildOutcomePanels(this.currentBoard);
         }
     }
 
@@ -177,37 +145,38 @@ class GameModes {
 
         this.renderer.render(this.currentBoard);
         this.updateInfoPanel(this.currentBoard);
-        this.buildOutcomeTree(this.currentBoard);
-        this.showFeedback('Make your move!');
+        this.buildOutcomePanels(this.currentBoard);
+        this.showFeedback('Make your move to start!');
 
         this.renderer.enableClicks((position) => this.handlePlayMove(position));
     }
 
     handlePlayMove(position) {
         if (this.currentBoard[position] !== EMPTY) {
-            this.showFeedback('Cell already occupied!', 'error');
+            this.showFeedback('⚠️ Cell already occupied', 'error');
             return;
         }
 
         const currentPlayer = BoardState.getCurrentPlayer(this.currentBoard);
+        const playerSymbol = BoardState.getPlayerSymbol(currentPlayer);
+
         this.currentBoard = BoardState.makeMove(this.currentBoard, position, currentPlayer);
 
         this.renderer.render(this.currentBoard);
         this.renderer.animateCell(position);
         this.updateInfoPanel(this.currentBoard);
-        this.buildOutcomeTree(this.currentBoard);
+        this.buildOutcomePanels(this.currentBoard);
 
-        // Check if game is over
         if (BoardState.isTerminal(this.currentBoard)) {
             const status = BoardState.getGameStatus(this.currentBoard);
             if (status.draw) {
-                this.showFeedback('Game ended in a draw!', 'info');
+                this.showFeedback('🤝 Game ended in a draw!', 'info');
             } else {
-                this.showFeedback(`${status.winner} wins!`, 'optimal');
+                this.showFeedback(`🏆 ${status.winner} wins the game!`, 'optimal');
             }
             this.renderer.disableClicks();
         } else {
-            this.showFeedback('Move made!');
+            this.showFeedback(`${playerSymbol} played position ${position + 1}`);
         }
     }
 
@@ -224,15 +193,17 @@ class GameModes {
 
         this.renderer.render(this.currentBoard);
         this.updateInfoPanel(this.currentBoard);
-        this.buildOutcomeTree(this.currentBoard);
-        this.showFeedback('Find the optimal move!');
+        this.buildOutcomePanels(this.currentBoard);
+
+        const currentPlayer = BoardState.getCurrentPlayer(this.currentBoard);
+        this.showFeedback(`Find the optimal move for ${BoardState.getPlayerSymbol(currentPlayer)}!`);
 
         this.renderer.enableClicks((position) => this.handlePracticeMove(position));
     }
 
     handlePracticeMove(position) {
         if (this.currentBoard[position] !== EMPTY) {
-            this.showFeedback('Cell already occupied!', 'error');
+            this.showFeedback('⚠️ Cell already occupied', 'error');
             return;
         }
 
@@ -240,7 +211,7 @@ class GameModes {
         const stateData = gameTreeLoader.getState(canonicalKey);
 
         if (!stateData) {
-            this.showFeedback('Error: State not found!', 'error');
+            this.showFeedback('❌ Error: State not found', 'error');
             return;
         }
 
@@ -248,14 +219,13 @@ class GameModes {
         const newBoard = BoardState.makeMove(this.currentBoard, position, currentPlayer);
         const newCanonicalKey = BoardState.getCanonicalKey(newBoard);
 
-        // Find the move in next_moves
         const moveData = stateData.next_moves.find(m => {
             const moveCanonical = BoardState.getCanonicalKey(BoardState.stringToBoard(m.to_board));
             return moveCanonical === newCanonicalKey;
         });
 
         if (!moveData) {
-            this.showFeedback('Error: Move not found!', 'error');
+            this.showFeedback('❌ Error: Move not found', 'error');
             return;
         }
 
@@ -263,14 +233,14 @@ class GameModes {
         this.renderer.render(this.currentBoard);
         this.renderer.animateCell(position);
         this.updateInfoPanel(this.currentBoard);
-        this.buildOutcomeTree(this.currentBoard);
+        this.buildOutcomePanels(this.currentBoard);
 
         if (moveData.is_optimal) {
-            this.showFeedback('✅ Optimal move!', 'optimal');
+            this.showFeedback('✅ Perfect! That was an optimal move!', 'optimal');
             this.renderer.highlightCell(position, 'optimal');
         } else {
             const optimalPos = stateData.winning_move_pos;
-            this.showFeedback(`⚠️ Suboptimal! Optimal: Position ${optimalPos + 1}`, 'suboptimal');
+            this.showFeedback(`⚠️ Suboptimal. The optimal move was position ${optimalPos + 1}`, 'suboptimal');
             this.renderer.highlightCell(position, 'suboptimal');
         }
 
@@ -294,16 +264,16 @@ class GameModes {
         this.renderer.render(this.currentBoard);
         this.renderer.disableClicks();
         this.updateInfoPanel(this.currentBoard);
-        this.buildOutcomeTree(this.currentBoard);
+        this.buildOutcomePanels(this.currentBoard);
 
         const currentPlayer = BoardState.getCurrentPlayer(this.currentBoard);
         const playerSymbol = BoardState.getPlayerSymbol(currentPlayer);
 
         this.showFeedback(
-            `What is the outcome for ${playerSymbol}?<br>` +
-            `<button class="mode-btn" id="quizWin" style="display:inline-block; margin:0.5rem; padding:0.75rem 1.5rem;">Win</button> ` +
-            `<button class="mode-btn" id="quizDraw" style="display:inline-block; margin:0.5rem; padding:0.75rem 1.5rem;">Draw</button> ` +
-            `<button class="mode-btn" id="quizLoss" style="display:inline-block; margin:0.5rem; padding:0.75rem 1.5rem;">Loss</button>`
+            `What is the outcome for ${playerSymbol} with optimal play?<br><br>` +
+            `<button class="mode-btn" id="quizWin" style="display:inline-block; margin:0.25rem; padding:0.75rem 1.5rem;">Win</button> ` +
+            `<button class="mode-btn" id="quizDraw" style="display:inline-block; margin:0.25rem; padding:0.75rem 1.5rem;">Draw</button> ` +
+            `<button class="mode-btn" id="quizLoss" style="display:inline-block; margin:0.25rem; padding:0.75rem 1.5rem;">Loss</button>`
         );
 
         setTimeout(() => {
@@ -323,12 +293,12 @@ class GameModes {
         const correctText = this.getOutcomeText(correctAnswer, currentPlayer);
 
         if (isCorrect) {
-            this.showFeedback(`✅ Correct! ${correctText}`, 'optimal');
+            this.showFeedback(`✅ Correct! The outcome is ${correctText}`, 'optimal');
         } else {
-            this.showFeedback(`❌ Incorrect. Answer: ${correctText}`, 'suboptimal');
+            this.showFeedback(`❌ Incorrect. The correct outcome is ${correctText}`, 'suboptimal');
         }
 
-        setTimeout(() => this.loadQuizQuestion(), 2000);
+        setTimeout(() => this.loadQuizQuestion(), 2500);
     }
 
     // ==================== COMMON ACTIONS ====================
